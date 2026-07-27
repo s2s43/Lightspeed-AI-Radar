@@ -62,7 +62,6 @@ def main():
     st.title("📊 Lightspeed AI Radar pro")
     st.subheader("منصة التحليل والمحاكاة اللحظية لجميع الجلسات")
     
-    # تهيئة وإعداد ذاكرة جلسة المحاكاة لحفظ صفقات المستخدم الافتراضية تزامناً مع إعادة التحديث
     if "trade_active" not in st.session_state:
         st.session_state.trade_active = False
     if "buy_price" not in st.session_state:
@@ -72,7 +71,6 @@ def main():
     if "pnl_history" not in st.session_state:
         st.session_state.pnl_history = []
 
-    # --- شريط التحكم الجانبي (Control Panel) ---
     st.sidebar.header("⚙️ إعدادات المنصة والربط")
     market_choice = st.sidebar.selectbox("اختر Market المستهدف:", ["السوق الأمريكي 🇺🇸", "السوق السعودي (تداول) 🇸🇦"])
     user_search = st.sidebar.text_input("أدخل اسم الشركة أو الرمز المباشر:", value="TSLA")
@@ -112,7 +110,6 @@ def main():
         price_change = ((current_price - prev_price) / prev_price) * 100
         levels = calculate_lightspeed_levels(current_price, hist['High'].max(), hist['Low'].min(), current_rsi)
 
-        # === لوحة الفحص والمؤشرات اللحظية الدقيقة ===
         st.subheader("📌 لوحة الفحص والمؤشرات اللحظية الدقيقة")
         st.markdown(f"### 🏢 الشركة النشطة: {ticker_resolved} | فريم التحليل: `{timeframe}`")
         
@@ -128,7 +125,6 @@ def main():
         
         st.markdown("---")
 
-        # === 📡 مركز محاكاة التداول التجريبي والصفقات الوهمية (Paper Trading Simulator) ===
         st.subheader("📡 لوحة التداول التجريبي الحية (Paper Trading Mode)")
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         
@@ -148,7 +144,6 @@ def main():
                 st.session_state.trade_active = False
                 st.success(f"🏁 تمت تصفية الصفقة بسلام! سعر الخروج: {exit_price:.2f} {currency} | صافي ربح/خسارة العملية: {net_pnl:.2f} {currency}")
 
-        # عرض حالة تتبع المركز الحالي المفتوح على الشاشة
         if st.session_state.trade_active:
             current_pnl = (current_price - st.session_state.buy_price) * st.session_state.shares_count
             pnl_color = "green" if current_pnl >= 0 else "red"
@@ -177,9 +172,14 @@ def main():
         
         st.markdown("---")
         
-        # شارت الشموع ومؤشر RSI
         st.subheader(f"📈 شارت التحليل الفني لجميع جلسات التداول لفريم ({timeframe})")
         fig = go.Figure(data=[go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع")])
         fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منطقة الدخول")
         fig.add_hline(y=levels['t1'], line_dash="dash", line_color="blue", annotation_text="الهدف 1")
         fig.add_hline(y=levels['sl'], line_dash="dash", line_color="red", annotation_text="وقف الخسارة")
+        fig.update_layout(xaxis_rangeslider_visible=False, height=410, template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
+        
+        fig_rsi = go.Figure()
+        fig_rsi.add_trace(go.Scatter(x=hist.index, y=hist['RSI'], mode='lines', line=dict(color='#ff9900', width=2), name='RSI'))
+        fig_rsi.add_hline(y=70, line_dash="dot", line_color="red")
