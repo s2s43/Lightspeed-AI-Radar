@@ -172,14 +172,15 @@ def main():
         
         st.markdown("---")
         
+        # بناء شارت الشموع المتكامل الموحد والخفيف جداً على السيرفر
         st.subheader(f"📈 شارت التحليل الفني لجميع جلسات التداول لفريم ({timeframe})")
-        fig = go.Figure(data=[go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع")])
+        fig = go.Figure()
+        fig.add_trace(go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع"))
         fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منطقة الدخول")
         fig.add_hline(y=levels['t1'], line_dash="dash", line_color="blue", annotation_text="الهدف 1")
         fig.add_hline(y=levels['sl'], line_dash="dash", line_color="red", annotation_text="وقف الخسارة")
-        fig.update_layout(xaxis_rangeslider_visible=False, height=410, template="plotly_dark")
+        fig.update_layout(xaxis_rangeslider_visible=False, height=480, template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
-        
-        fig_rsi = go.Figure()
-        fig_rsi.add_trace(go.Scatter(x=hist.index, y=hist['RSI'], mode='lines', line=dict(color='#ff9900', width=2), name='RSI'))
-        fig_rsi.add_hline(y=70, line_dash="dot", line_color="red")
+
+if __name__ == "__main__":
+    main()
