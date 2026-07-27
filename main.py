@@ -43,16 +43,17 @@ def calculate_rsi(df, periods=14):
     return rsi
 
 def calculate_lightspeed_levels(current_price, high, low, rsi_value):
-    """توليد المستويات الفنية المضاربية الدقيقة لقناص ليتسبيد"""
+    """توليد المستويات الفنية المضاربية الدقيقة لقناص ليتسبيد بناء على السعر الخام"""
     range_movement = (high - low) if (high - low) > 0 else (current_price * 0.02)
-    adjustment = 0.05 if rsi_value < 35 else (0.25 if rsi_value > 65 else 0.15)
+    # تعديل النسبة لتبقى منطقة الدخول آمنة وقريبة جداً من سعر التداول الفعلي حالياً
+    adjustment = 0.02 if rsi_value < 35 else (0.08 if rsi_value > 65 else 0.04)
     return {
         "entry": current_price - (range_movement * adjustment),
-        "t1": current_price + (range_movement * 0.35),
-        "t2": current_price + (range_movement * 0.85),
-        "t3": current_price + (range_movement * 1.50),
-        "sl": current_price - (range_movement * 0.55),
-        "strict_sl": current_price - (range_movement * 1.10)
+        "t1": current_price + (range_movement * 0.25),
+        "t2": current_price + (range_movement * 0.55),
+        "t3": current_price + (range_movement * 0.90),
+        "sl": current_price - (range_movement * 0.15),
+        "strict_sl": current_price - (range_movement * 0.30)
     }
 
 # ==========================================
@@ -87,7 +88,13 @@ def main():
         with st.spinner(f"📡 جاري الاتصال بالبورصة ومعالجة بيانات {ticker_resolved} فوريّاً..."):
             try:
                 ticker_obj = yf.Ticker(ticker_resolved)
-                hist = ticker_obj.history(interval=timeframe, period=period_map[timeframe])
+                # ميزة الحسم السعري: إلغاء التعديلات التلقائية لياهو وجلب السعر الخام الحقيقي الحركي للسوق
+                hist = ticker_obj.history(
+                    interval=timeframe, 
+                    period=period_map[timeframe],
+                    auto_adjust=False,
+                    actions=False
+                )
             except Exception as e:
                 st.error(f"حدث خطأ أثناء معالجة بيانات البورصة اللحظية: {str(e)}")
                 return
@@ -107,13 +114,14 @@ def main():
         stock_direction = "📈 صاعد (زخم إيجابي)" if price_change >= 0 else "📉 هابط (تصحيح لحظي)"
         levels = calculate_lightspeed_levels(current_price, hist['High'].max(), hist['Low'].min(), current_rsi)
         
-        # لوحة فحص المؤشرات اللحظية الأساسية
+        company_name = ticker_resolved
+
         st.subheader("📌 لوحة الفحص والمؤشرات اللحظية الحية")
-        st.markdown(f"### 🏢 السهم النشط حالياً: {ticker_resolved} | فريم التحليل: `{timeframe}`")
+        st.markdown(f"### 🏢 الشركة النشطة: {company_name} ({ticker_resolved}) | فريم التحليل: `{timeframe}`")
         
         col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
-            st.metric(label=f"السعر الحالي ({currency})", value=f"{current_price:.2f}", delta=f"{price_change:.2f}%")
+            st.metric(label=f"السعر الحالي المسترد ({currency})", value=f"{current_price:.2f}", delta=f"{price_change:.2f}%")
         with col_m2:
             st.metric(label="مؤشر القوة النسبية RSI الحالي", value=f"{current_rsi:.2f}")
         with col_m3:
