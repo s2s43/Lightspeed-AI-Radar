@@ -51,7 +51,6 @@ def calculate_lightspeed_levels(current_price, high, low, rsi_value):
     """توليد المستويات الفنية المضاربية الدقيقة حركياً بناء على تذبذب الشموع وقوة الـ RSI الحالية"""
     range_movement = (high - low) if (high - low) > 0 else (current_price * 0.02)
     
-    # مواءمة ذكية: إذا كان RSI منخفضاً (فرصة شراء ارتدادية)، يتم تقريب نقطة الدخول للسعر الحالي
     adjustment = 0.05 if rsi_value < 35 else (0.25 if rsi_value > 65 else 0.15)
     
     return {
@@ -64,7 +63,7 @@ def calculate_lightspeed_levels(current_price, high, low, rsi_value):
     }
 
 # ==========================================
-# 3. بناء لوحة تحكم Lightspeed AI Radar pro
+# 3. بناء واجهة مستخدم Streamlit الرئيسية
 # ==========================================
 def main():
     st.set_page_config(page_title="Lightspeed AI Radar - منصة التداول الذكية", layout="wide")
@@ -116,7 +115,6 @@ def main():
             
         hist = hist.dropna(subset=['Close'])
         
-        # حساب قيم مؤشر القوة النسبية RSI الفعلي وإلحاقها ببيانات الشمعة
         hist['RSI'] = calculate_rsi(hist)
         current_rsi = hist['RSI'].iloc[-1] if not hist['RSI'].empty else 50.0
         
@@ -127,7 +125,6 @@ def main():
         stock_direction = "📈 صاعد (زخم إيجابي)" if price_change >= 0 else "📉 هابط (تصحيح لحظي)"
         dir_color = "green" if price_change >= 0 else "red"
         
-        # تشغيل الخوارزمية المدعمة بـ RSI لتوليد نقاط القناص
         levels = calculate_lightspeed_levels(current_price, hist['High'].max(), hist['Low'].min(), current_rsi)
         
         try:
@@ -145,7 +142,6 @@ def main():
         with col_m1:
             st.metric(label=f"السعر الحالي ({currency})", value=f"{current_price:.2f}", delta=f"{price_change:.2f}%")
         with col_m2:
-            # إضافة قيمة RSI الحقيقية إلى واجهة الفحص مباشرة
             st.metric(label="مؤشر القوة النسبية RSI الحالي", value=f"{current_rsi:.2f}", delta="إيجابي التشغيل" if current_rsi > 50 else "ضعيف الزخم")
         with col_m3:
             last_vol = hist['Volume'].iloc[-1]
@@ -168,7 +164,6 @@ def main():
         
         with col_t2:
             st.subheader("🔔 مركز الإشعارات الفورية ونصائح الرادار")
-            # تنبيهات الإشباع الشرائي والبيعي الفنية المبنية على قيم RSI الدقيقة
             if current_rsi >= 70:
                 st.error("🔥 **إشعار تضخم فني (Overbought):** مؤشر RSI أعلى من 70! السهم في منطقة تشبع شرائي حاد ومخاطرة الدخول عالية جداً حالياً، انتظر التهدئة.")
             elif current_rsi <= 30:
@@ -178,7 +173,6 @@ def main():
         
         st.markdown("---")
         
-        # === 📈 شارت الشموع اليابانية الرئيسي ===
         st.subheader(f"📈 شارت التحليل الفني التفاعلي اللحظي لفريم ({timeframe})")
         fig = go.Figure(data=[go.Candlestick(
             x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع اليابانية"
@@ -189,6 +183,13 @@ def main():
         fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=450, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16')
         st.plotly_chart(fig, use_container_width=True)
         
-        # === 📊 شارت مؤشر RSI المستقل والتفاعلي بالكامل ===
         st.subheader("📊 شارت تذبذب مؤشر القوة النسبية الفعلي (RSI Chart)")
         fig_rsi = go.Figure()
+        fig_rsi.add_trace(go.Scatter(x=hist.index, y=hist['RSI'], mode='lines', line=dict(color='#ff9900', width=2), name='RSI (14)'))
+        fig_rsi.add_hline(y=70, line_dash="dot", line_color="red", annotation_text="تشبع شرائي 70")
+        fig_rsi.add_hline(y=30, line_dash="dot", line_color="green", annotation_text="تشبع بيعي 30")
+        fig_rsi.update_layout(template="plotly_dark", height=200, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16', yaxis=dict(range=[0, 100]))
+        st.plotly_chart(fig_rsi, use_container_width=True)
+        
+        st.markdown("---")
+        
