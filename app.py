@@ -50,7 +50,6 @@ def calculate_rsi(df, periods=14):
 def calculate_lightspeed_levels(current_price, high, low, rsi_value):
     """توليد المستويات الفنية المضاربية الدقيقة حركياً بناء على تذبذب الشموع وقوة الـ RSI الحالية"""
     range_movement = (high - low) if (high - low) > 0 else (current_price * 0.02)
-    
     adjustment = 0.05 if rsi_value < 35 else (0.25 if rsi_value > 65 else 0.15)
     
     return {
@@ -177,7 +176,7 @@ def main():
         fig = go.Figure(data=[go.Candlestick(
             x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع اليابانية"
         )])
-        fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منخول")
+        fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منطقة الدخول")
         fig.add_hline(y=levels['t1'], line_dash="dash", line_color="blue", annotation_text="الهدف 1")
         fig.add_hline(y=levels['sl'], line_dash="dash", line_color="red", annotation_text="وقف الخسارة الصارم")
         fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=450, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16')
