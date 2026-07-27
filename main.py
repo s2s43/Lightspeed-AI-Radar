@@ -32,7 +32,6 @@ def resolve_ticker(user_input, market_type):
 # 2. محرك الحسابات الفنية ومؤشر RSI
 # ==========================================
 def calculate_rsi(df, periods=14):
-    """حساب مؤشر القوة النسبية RSI بدقة رياضية"""
     if len(df) < periods:
         return pd.Series(50, index=df.index)
     close_delta = df['Close'].diff()
@@ -45,7 +44,6 @@ def calculate_rsi(df, periods=14):
     return rsi
 
 def calculate_lightspeed_levels(current_price, high, low, rsi_value):
-    """توليد المستويات الفنية المضاربية الدقيقة بناءً على سعر الجلسة الحالية الفعلي"""
     range_movement = (high - low) if (high - low) > 0 else (current_price * 0.02)
     adjustment = 0.02 if rsi_value < 35 else (0.08 if rsi_value > 65 else 0.04)
     return {
@@ -58,19 +56,26 @@ def calculate_lightspeed_levels(current_price, high, low, rsi_value):
     }
 
 # ==========================================
-# 3. بناء واجهة مستخدم المنصة الرئيسية
+# 3. بناء واجهة مستخدم المنصة الرئيسية والمحاكي
 # ==========================================
 def main():
     st.title("📊 Lightspeed AI Radar pro")
-    st.subheader("منصة التداول والتحليل اللحظي الذكي لجميع الجلسات")
-    st.markdown("محرك مضاربي متكامل يدمج أسعار جلسات ما قبل التداول، الجلسة الرسمية، والتداول الليلي فوريّاً بدقة متناهية.")
+    st.subheader("منصة التحليل والمحاكاة اللحظية لجميع الجلسات")
     
+    # تهيئة وإعداد ذاكرة جلسة المحاكاة لحفظ صفقات المستخدم الافتراضية تزامناً مع إعادة التحديث
+    if "trade_active" not in st.session_state:
+        st.session_state.trade_active = False
+    if "buy_price" not in st.session_state:
+        st.session_state.buy_price = 0.0
+    if "shares_count" not in st.session_state:
+        st.session_state.shares_count = 0
+    if "pnl_history" not in st.session_state:
+        st.session_state.pnl_history = []
+
     # --- شريط التحكم الجانبي (Control Panel) ---
     st.sidebar.header("⚙️ إعدادات المنصة والربط")
-    market_choice = st.sidebar.selectbox("اختر السوق المستهدف:", ["السوق الأمريكي 🇺🇸", "السوق السعودي (تداول) 🇸🇦"])
+    market_choice = st.sidebar.selectbox("اختر Market المستهدف:", ["السوق الأمريكي 🇺🇸", "السوق السعودي (تداول) 🇸🇦"])
     user_search = st.sidebar.text_input("أدخل اسم الشركة أو الرمز المباشر:", value="TSLA")
-    
-    # يفضل استخدام فريم دقيقة أو 5 دقائق لكشف الأسعار الليلية وما قبل الافتتاح بدقة كاملة
     timeframe = st.sidebar.selectbox("اختر الفريم الزمني للتحليل (Timeframe):", ["1m", "5m", "15m", "1h", "1d", "1wk"])
     trigger_radar = st.sidebar.button("تشغيل خوارزمية الرادار اللحظية", use_container_width=True)
 
@@ -81,47 +86,35 @@ def main():
     else:
         st.sidebar.code("1. إنفيديا (NVDA)\n2. تسلا (TSLA)\n3. أبل (AAPL)")
 
-    if trigger_radar:
+    if trigger_radar or st.session_state.trade_active:
         ticker_resolved = resolve_ticker(user_search, market_choice)
         currency = "ر.س" if market_choice == "السوق السعودي (تداول) 🇸🇦" else "$"
         period_map = {"1m": "1d", "5m": "5d", "15m": "5d", "1h": "1mo", "1d": "6mo", "1wk": "2y"}
         
         hist = pd.DataFrame()
-        
-        with st.spinner(f"📡 جاري سحب الأسعار الممتدة للجلسة الحالية لـ {ticker_resolved}..."):
-            try:
-                ticker_obj = yf.Ticker(ticker_resolved)
-                
-                # تفعيل خاصية prepost=True لدمج أسعار البري ماركت والتداول الليلي والأسعار الحية فوراً
-                hist = ticker_obj.history(
-                    interval=timeframe, 
-                    period=period_map[timeframe],
-                    prepost=True,
-                    auto_adjust=False,
-                    actions=False
-                )
-            except Exception as e:
-                st.error(f"حدث خطأ أثناء الاتصال المباشر بالبورصة: {str(e)}")
-                return
+        try:
+            ticker_obj = yf.Ticker(ticker_resolved)
+            hist = ticker_obj.history(interval=timeframe, period=period_map[timeframe], prepost=True, auto_adjust=False, actions=False)
+        except Exception as e:
+            st.error(f"حدث خطأ أثناء الاتصال بالبورصة: {str(e)}")
+            return
 
         if hist.empty:
-            st.error("⚠️ تعذر جلب بيانات حية لهذه الجلسة، يرجى التأكد من أن الرمز نشط في هذا التوقيت.")
+            st.error("⚠️ تعذر جلب بيانات حية لهذه الجلسة، يرجى إعادة المحاولة.")
             return
             
         hist = hist.dropna(subset=['Close'])
         hist['RSI'] = calculate_rsi(hist)
         current_rsi = hist['RSI'].iloc[-1] if not hist['RSI'].empty else 50.0
         
-        # لقط آخر سعر حركي يتم تداوله بالثانية الآن في السوق ممتد الساعات
         current_price = hist['Close'].iloc[-1]
         prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
         price_change = ((current_price - prev_price) / prev_price) * 100
-        
         levels = calculate_lightspeed_levels(current_price, hist['High'].max(), hist['Low'].min(), current_rsi)
 
-        # === لوحة قيادة ليتسبيد المحدثة ببطاقة نوع الجلسة الحالية ===
+        # === لوحة الفحص والمؤشرات اللحظية الدقيقة ===
         st.subheader("📌 لوحة الفحص والمؤشرات اللحظية الدقيقة")
-        st.markdown(f"### 🏢 السهم النشط حالياً: {ticker_resolved} | فريم التحليل: `{timeframe}`")
+        st.markdown(f"### 🏢 الشركة النشطة: {ticker_resolved} | فريم التحليل: `{timeframe}`")
         
         col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
@@ -134,10 +127,38 @@ def main():
             st.metric("سيولة الشمعة الحالية", f"{liquidity_value:,.0f} {currency}")
         
         st.markdown("---")
+
+        # === 📡 مركز محاكاة التداول التجريبي والصفقات الوهمية (Paper Trading Simulator) ===
+        st.subheader("📡 لوحة التداول التجريبي الحية (Paper Trading Mode)")
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
+        
+        with col_btn1:
+            trade_shares = st.number_input("تحديد كمية الأسهم للصفقة:", min_value=1, max_value=10000, value=100)
+        with col_btn2:
+            if st.button("🛒 تنفيذ أمر BUY / شراء ماركت", use_container_width=True, disabled=st.session_state.trade_active):
+                st.session_state.trade_active = True
+                st.session_state.buy_price = current_price
+                st.session_state.shares_count = trade_shares
+                st.success(f"🚀 نجح الشراء! دخلت صفقة وهمية على الرمز {ticker_resolved} بكمية {trade_shares} سهم بسعر: {current_price:.2f} {currency}")
+        with col_btn3:
+            if st.button("⚡ تنفيذ أمر SELL / بيع وإغلاق", use_container_width=True, disabled=not st.session_state.trade_active):
+                exit_price = current_price
+                net_pnl = (exit_price - st.session_state.buy_price) * st.session_state.shares_count
+                st.session_state.pnl_history.append(net_pnl)
+                st.session_state.trade_active = False
+                st.success(f"🏁 تمت تصفية الصفقة بسلام! سعر الخروج: {exit_price:.2f} {currency} | صافي ربح/خسارة العملية: {net_pnl:.2f} {currency}")
+
+        # عرض حالة تتبع المركز الحالي المفتوح على الشاشة
+        if st.session_state.trade_active:
+            current_pnl = (current_price - st.session_state.buy_price) * st.session_state.shares_count
+            pnl_color = "green" if current_pnl >= 0 else "red"
+            st.info(f"📋 **المركز المفتوح حالياً:** السعر المعلق: **{st.session_state.buy_price:.2f}** | الكمية: **{st.session_state.shares_count} سهم** | الأرباح اللحظية المتحركة الآن: <span style='color:{pnl_color}; font-weight:bold;'>{current_pnl:.2f} {currency}</span>", unsafe_allow_html=True)
+        
+        st.markdown("---")
         
         col_t1, col_t2 = st.columns(2)
         with col_t1:
-            st.subheader("🎯 مستويات القناص والأهداف الدقيقة المحتسبة")
+            st.subheader("🎯 مستويات القناص والأهداف الدقيقة المحتسب")
             st.success(f"🟢 منطقة أفضل دخول آمن للجلسة: **{levels['entry']:.2f} {currency}**")
             st.info(f"🚀 المستهدف المضاربي الأول: **{levels['t1']:.2f} {currency}**")
             st.info(f"🚀 المستهدف الفني الثاني: **{levels['t2']:.2f} {currency}**")
@@ -156,25 +177,9 @@ def main():
         
         st.markdown("---")
         
-        # بناء شارت الشموع اليابانية التفاعلي مدمجاً بساعات التداول الممتدة الكاملة
-        st.subheader(f"📈 شارت التحليل الفني التفاعلي لجميع جلسات التداول لفريم ({timeframe})")
-        fig = go.Figure(data=[go.Candlestick(
-            x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع اليابانية ممتدة الساعات"
-        )])
+        # شارت الشموع ومؤشر RSI
+        st.subheader(f"📈 شارت التحليل الفني لجميع جلسات التداول لفريم ({timeframe})")
+        fig = go.Figure(data=[go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع")])
         fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منطقة الدخول")
         fig.add_hline(y=levels['t1'], line_dash="dash", line_color="blue", annotation_text="الهدف 1")
-        fig.add_hline(y=levels['sl'], line_dash="dash", line_color="red", annotation_text="وقف الخسارة الصارم")
-        fig.update_layout(xaxis_rangeslider_visible=False, height=410, template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # بناء شارت RSI التلقائي
-        st.subheader("📊 شارت تذبذب مؤشر القوة النسبية الفعلي (RSI Chart)")
-        fig_rsi = go.Figure()
-        fig_rsi.add_trace(go.Scatter(x=hist.index, y=hist['RSI'], mode='lines', line=dict(color='#ff9900', width=2), name='RSI (14)'))
-        fig_rsi.add_hline(y=70, line_dash="dot", line_color="red", annotation_text="70")
-        fig_rsi.add_hline(y=30, line_dash="dot", line_color="green", annotation_text="30")
-        fig_rsi.update_layout(height=180, template="plotly_dark")
-        st.plotly_chart(fig_rsi, use_container_width=True)
-
-if __name__ == "__main__":
-    main()
+        fig.add_hline(y=levels['sl'], line_dash="dash", line_color="red", annotation_text="وقف الخسارة")
