@@ -162,7 +162,7 @@ def main():
             st.error(f"🚨 وقف الخسارة الصارم النهائي: **{levels['strict_sl']:.2f} {currency}**")
         
         with col_t2:
-            st.subheader("🔔 مركز الإشعارات الفورية ونصائح الرادار")
+            st.subheader("🔔 centre الإشعارات الفورية ونصائح الرادار")
             if current_rsi >= 70:
                 st.error("🔥 **إشعار تضخم فني (Overbought):** مؤشر RSI أعلى من 70! السهم في منطقة تشبع شرائي حاد ومخاطرة الدخول عالية جداً حالياً، انتظر التهدئة.")
             elif current_rsi <= 30:
@@ -187,7 +187,7 @@ def main():
         fig_rsi.add_trace(go.Scatter(x=hist.index, y=hist['RSI'], mode='lines', line=dict(color='#ff9900', width=2), name='RSI (14)'))
         fig_rsi.add_hline(y=70, line_dash="dot", line_color="red", annotation_text="تشبع شرائي 70")
         fig_rsi.add_hline(y=30, line_dash="dot", line_color="green", annotation_text="تشبع بيعي 30")
-        fig_rsi.update_layout(template="plotly_dark", height=200, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16')
+        fig_rsi.update_layout(template="plotly_dark", height=200, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16', yaxis=dict(range=[0, 100]))
         st.plotly_chart(fig_rsi, use_container_width=True)
         
         st.markdown("---")
