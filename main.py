@@ -33,6 +33,8 @@ def resolve_ticker(user_input, market_type):
 # ==========================================
 def calculate_rsi(df, periods=14):
     """حساب مؤشر القوة النسبية RSI بدقة رياضية"""
+    if len(df) < periods:
+        return pd.Series(50, index=df.index)
     close_delta = df['Close'].diff()
     up = close_delta.clip(lower=0)
     down = -1 * close_delta.clip(upper=0)
@@ -43,9 +45,8 @@ def calculate_rsi(df, periods=14):
     return rsi
 
 def calculate_lightspeed_levels(current_price, high, low, rsi_value):
-    """توليد المستويات الفنية المضاربية الدقيقة لقناص ليتسبيد بناء على السعر الخام"""
+    """توليد المستويات الفنية المضاربية الدقيقة بناءً على سعر الجلسة الحالية الفعلي"""
     range_movement = (high - low) if (high - low) > 0 else (current_price * 0.02)
-    # تعديل النسبة لتبقى منطقة الدخول آمنة وقريبة جداً من سعر التداول الفعلي حالياً
     adjustment = 0.02 if rsi_value < 35 else (0.08 if rsi_value > 65 else 0.04)
     return {
         "entry": current_price - (range_movement * adjustment),
@@ -61,13 +62,15 @@ def calculate_lightspeed_levels(current_price, high, low, rsi_value):
 # ==========================================
 def main():
     st.title("📊 Lightspeed AI Radar pro")
-    st.subheader("منصة التداول والتحليل اللحظي الذكي")
-    st.markdown("محرك مضاربي متكامل مدعم بمؤشر القوة النسبية RSI الفعلي وبث فوري للأسعار الحية من البورصة العالمية.")
+    st.subheader("منصة التداول والتحليل اللحظي الذكي لجميع الجلسات")
+    st.markdown("محرك مضاربي متكامل يدمج أسعار جلسات ما قبل التداول، الجلسة الرسمية، والتداول الليلي فوريّاً بدقة متناهية.")
     
     # --- شريط التحكم الجانبي (Control Panel) ---
     st.sidebar.header("⚙️ إعدادات المنصة والربط")
     market_choice = st.sidebar.selectbox("اختر السوق المستهدف:", ["السوق الأمريكي 🇺🇸", "السوق السعودي (تداول) 🇸🇦"])
     user_search = st.sidebar.text_input("أدخل اسم الشركة أو الرمز المباشر:", value="TSLA")
+    
+    # يفضل استخدام فريم دقيقة أو 5 دقائق لكشف الأسعار الليلية وما قبل الافتتاح بدقة كاملة
     timeframe = st.sidebar.selectbox("اختر الفريم الزمني للتحليل (Timeframe):", ["1m", "5m", "15m", "1h", "1d", "1wk"])
     trigger_radar = st.sidebar.button("تشغيل خوارزمية الرادار اللحظية", use_container_width=True)
 
@@ -85,56 +88,57 @@ def main():
         
         hist = pd.DataFrame()
         
-        with st.spinner(f"📡 جاري الاتصال بالبورصة ومعالجة بيانات {ticker_resolved} فوريّاً..."):
+        with st.spinner(f"📡 جاري سحب الأسعار الممتدة للجلسة الحالية لـ {ticker_resolved}..."):
             try:
                 ticker_obj = yf.Ticker(ticker_resolved)
-                # ميزة الحسم السعري: إلغاء التعديلات التلقائية لياهو وجلب السعر الخام الحقيقي الحركي للسوق
+                
+                # تفعيل خاصية prepost=True لدمج أسعار البري ماركت والتداول الليلي والأسعار الحية فوراً
                 hist = ticker_obj.history(
                     interval=timeframe, 
                     period=period_map[timeframe],
+                    prepost=True,
                     auto_adjust=False,
                     actions=False
                 )
             except Exception as e:
-                st.error(f"حدث خطأ أثناء معالجة بيانات البورصة اللحظية: {str(e)}")
+                st.error(f"حدث خطأ أثناء الاتصال المباشر بالبورصة: {str(e)}")
                 return
 
         if hist.empty:
-            st.error("⚠️ تعذر جلب بيانات حية لهذا الرمز، يرجى التأكد من كتابة الاسم أو الرمز بشكل صحيح.")
+            st.error("⚠️ تعذر جلب بيانات حية لهذه الجلسة، يرجى التأكد من أن الرمز نشط في هذا التوقيت.")
             return
             
         hist = hist.dropna(subset=['Close'])
         hist['RSI'] = calculate_rsi(hist)
         current_rsi = hist['RSI'].iloc[-1] if not hist['RSI'].empty else 50.0
         
+        # لقط آخر سعر حركي يتم تداوله بالثانية الآن في السوق ممتد الساعات
         current_price = hist['Close'].iloc[-1]
         prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
         price_change = ((current_price - prev_price) / prev_price) * 100
         
-        stock_direction = "📈 صاعد (زخم إيجابي)" if price_change >= 0 else "📉 هابط (تصحيح لحظي)"
         levels = calculate_lightspeed_levels(current_price, hist['High'].max(), hist['Low'].min(), current_rsi)
-        
-        company_name = ticker_resolved
 
-        st.subheader("📌 لوحة الفحص والمؤشرات اللحظية الحية")
-        st.markdown(f"### 🏢 الشركة النشطة: {company_name} ({ticker_resolved}) | فريم التحليل: `{timeframe}`")
+        # === لوحة قيادة ليتسبيد المحدثة ببطاقة نوع الجلسة الحالية ===
+        st.subheader("📌 لوحة الفحص والمؤشرات اللحظية الدقيقة")
+        st.markdown(f"### 🏢 السهم النشط حالياً: {ticker_resolved} | فريم التحليل: `{timeframe}`")
         
         col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
-            st.metric(label=f"السعر الحالي المسترد ({currency})", value=f"{current_price:.2f}", delta=f"{price_change:.2f}%")
+            st.metric(label=f"السعر الفعلي اللحظي الآن ({currency})", value=f"{current_price:.2f}", delta=f"{price_change:.2f}%")
         with col_m2:
-            st.metric(label="مؤشر القوة النسبية RSI الحالي", value=f"{current_rsi:.2f}")
+            st.metric(label="مؤشر القوة النسبية RSI للجلسة", value=f"{current_rsi:.2f}")
         with col_m3:
             last_vol = hist['Volume'].iloc[-1]
             liquidity_value = last_vol * current_price
-            st.metric("سيولة الشمعة الأخيرة", f"{liquidity_value:,.0f} {currency}")
+            st.metric("سيولة الشمعة الحالية", f"{liquidity_value:,.0f} {currency}")
         
         st.markdown("---")
         
         col_t1, col_t2 = st.columns(2)
         with col_t1:
-            st.subheader("🎯 أهداف ومستويات القناص المضاربية")
-            st.success(f"🟢 منطقة أفضل دخول آمن لحظي: **{levels['entry']:.2f} {currency}**")
+            st.subheader("🎯 مستويات القناص والأهداف الدقيقة المحتسبة")
+            st.success(f"🟢 منطقة أفضل دخول آمن للجلسة: **{levels['entry']:.2f} {currency}**")
             st.info(f"🚀 المستهدف المضاربي الأول: **{levels['t1']:.2f} {currency}**")
             st.info(f"🚀 المستهدف الفني الثاني: **{levels['t2']:.2f} {currency}**")
             st.info(f"🚀 المستهدف الرئيسي الثالث: **{levels['t3']:.2f} {currency}**")
@@ -148,19 +152,19 @@ def main():
             elif current_rsi <= 30:
                 st.success("💎 إشعار اقتناص قاع (Oversold): مؤشر RSI تحت 30! السهم في منطقة تشبع بيعي مفرط فريدة، ويمثل فرصة تجميع ذهبية لارتداد سعري قوي قادم.")
             else:
-                st.warning("⚖️ نصيحة الرادار: مؤشر RSI في نطاق متزن طبيعي (بين 30 و 70). المسار مناسب جداً للمضاربات السريعة واقتناص الفروقات السعرية.")
+                st.warning("⚖️ نصيحة الرادار: مؤشر RSI في نطاق متزن طبيعي (بين 30 و 70). المسار مناسب جداً للمضاربات السريعة واقتناص الفروقات السعرية في الجلسة الممتدة.")
         
         st.markdown("---")
         
-        # بناء شارت الشموع اليابانية التفاعلي
-        st.subheader(f"📈 شارت التحليل الفني التفاعلي اللحظي لفريم ({timeframe})")
+        # بناء شارت الشموع اليابانية التفاعلي مدمجاً بساعات التداول الممتدة الكاملة
+        st.subheader(f"📈 شارت التحليل الفني التفاعلي لجميع جلسات التداول لفريم ({timeframe})")
         fig = go.Figure(data=[go.Candlestick(
-            x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع اليابانية"
+            x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع اليابانية ممتدة الساعات"
         )])
         fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منطقة الدخول")
         fig.add_hline(y=levels['t1'], line_dash="dash", line_color="blue", annotation_text="الهدف 1")
         fig.add_hline(y=levels['sl'], line_dash="dash", line_color="red", annotation_text="وقف الخسارة الصارم")
-        fig.update_layout(xaxis_rangeslider_visible=False, height=410)
+        fig.update_layout(xaxis_rangeslider_visible=False, height=410, template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
         
         # بناء شارت RSI التلقائي
@@ -169,7 +173,7 @@ def main():
         fig_rsi.add_trace(go.Scatter(x=hist.index, y=hist['RSI'], mode='lines', line=dict(color='#ff9900', width=2), name='RSI (14)'))
         fig_rsi.add_hline(y=70, line_dash="dot", line_color="red", annotation_text="70")
         fig_rsi.add_hline(y=30, line_dash="dot", line_color="green", annotation_text="30")
-        fig_rsi.update_layout(height=180)
+        fig_rsi.update_layout(height=180, template="plotly_dark")
         st.plotly_chart(fig_rsi, use_container_width=True)
 
 if __name__ == "__main__":
