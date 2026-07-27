@@ -2,19 +2,16 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
-from textblob import TextBlob
 
 # ==========================================
-# 1. محرك البحث والترجمة الذكية الفورية للأسواق
+# 1. قاموس محرك البحث والترجمة الفورية للأسواق
 # ==========================================
 COMPANY_DICTIONARY = {
-    # السوق السعودي 🇸🇦
     "الراجحي": "1120.SR", "مصرف الراجحي": "1120.SR", "1120": "1120.SR",
     "أرامكو": "2222.SR", "أرامكو السعودية": "2222.SR", "ارامكو": "2222.SR", "2222": "2222.SR",
     "الأهلي": "1180.SR", "البنك الأهلي": "1180.SR", "1180": "1180.SR",
     "سابك": "2010.SR", "2010": "2010.SR",
     "الاتصالات السعودية": "7010.SR", "stc": "7010.SR", "7010": "7010.SR",
-    # السوق الأمريكي 🇺🇸
     "تسلا": "TSLA", "tesla": "TSLA",
     "أبل": "AAPL", "apple": "AAPL",
     "مايكروسوفت": "MSFT", "microsoft": "MSFT",
@@ -32,26 +29,23 @@ def resolve_ticker(user_input, market_type):
     return user_input.upper().strip()
 
 # ==========================================
-# 2. محرك الحسابات الفنية المتقدمة ومؤشر RSI
+# 2. محرك الحسابات الفنية ومؤشر RSI
 # ==========================================
 def calculate_rsi(df, periods=14):
-    """حساب مؤشر القوة النسبية RSI بدقة رياضية متناهية بدون مكتبات خارجية ثقيلة"""
+    """حساب مؤشر القوة النسبية RSI بدقة رياضية"""
     close_delta = df['Close'].diff()
     up = close_delta.clip(lower=0)
     down = -1 * close_delta.clip(upper=0)
-    
     ma_up = up.ewm(com=periods - 1, adjust=False).mean()
     ma_down = down.ewm(com=periods - 1, adjust=False).mean()
-    
     rsi = ma_up / ma_down
     rsi = 100 - (100 / (1 + rsi))
     return rsi
 
 def calculate_lightspeed_levels(current_price, high, low, rsi_value):
-    """توليد المستويات الفنية المضاربية الدقيقة حركياً بناء على تذبذب الشموع وقوة الـ RSI الحالية"""
+    """توليد المستويات الفنية المضاربية الدقيقة لقناص ليتسبيد"""
     range_movement = (high - low) if (high - low) > 0 else (current_price * 0.02)
     adjustment = 0.05 if rsi_value < 35 else (0.25 if rsi_value > 65 else 0.15)
-    
     return {
         "entry": current_price - (range_movement * adjustment),
         "t1": current_price + (range_movement * 0.35),
@@ -62,23 +56,14 @@ def calculate_lightspeed_levels(current_price, high, low, rsi_value):
     }
 
 # ==========================================
-# 3. بناء واجهة مستخدم Streamlit الرئيسية
+# 3. بناء واجهة مستخدم المنصة الرئيسية
 # ==========================================
 def main():
-    st.set_page_config(page_title="Lightspeed AI Radar - منصة التداول الذكية", layout="wide")
+    st.title("📊 Lightspeed AI Radar pro")
+    st.subheader("منصة التداول والتحليل اللحظي الذكي")
+    st.markdown("محرك مضاربي متكامل مدعم بمؤشر القوة النسبية RSI الفعلي وبث فوري للأسعار الحية من البورصة العالمية.")
     
-    st.markdown("""
-        <style>
-        .stApp { background-color: #06080c; color: #d1d4dc; }
-        h1, h2, h3 { color: #ff9900 !important; font-family: Arial, sans-serif; }
-        .stButton>button { background-color: #d97706 !important; color: white !important; font-weight: bold; border-radius: 4px; }
-        .stButton>button:hover { background-color: #b45309 !important; }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    st.title("📊 Lightspeed AI Radar pro - منصة التداول والتحليل اللحظي")
-    st.markdown("محرك مضاربي متكامل مدعم بمؤشر القوة النسبية RSI الفعلي وجلب فوري للأسعار الحية.")
-    
+    # --- شريط التحكم الجانبي (Control Panel) ---
     st.sidebar.header("⚙️ إعدادات المنصة والربط")
     market_choice = st.sidebar.selectbox("اختر السوق المستهدف:", ["السوق الأمريكي 🇺🇸", "السوق السعودي (تداول) 🇸🇦"])
     user_search = st.sidebar.text_input("أدخل اسم الشركة أو الرمز المباشر:", value="TSLA")
@@ -98,7 +83,6 @@ def main():
         period_map = {"1m": "1d", "5m": "5d", "15m": "5d", "1h": "1mo", "1d": "6mo", "1wk": "2y"}
         
         hist = pd.DataFrame()
-        ticker_obj = None
         
         with st.spinner(f"📡 جاري الاتصال بالبورصة ومعالجة بيانات {ticker_resolved} فوريّاً..."):
             try:
@@ -113,7 +97,6 @@ def main():
             return
             
         hist = hist.dropna(subset=['Close'])
-        
         hist['RSI'] = calculate_rsi(hist)
         current_rsi = hist['RSI'].iloc[-1] if not hist['RSI'].empty else 50.0
         
@@ -122,38 +105,27 @@ def main():
         price_change = ((current_price - prev_price) / prev_price) * 100
         
         stock_direction = "📈 صاعد (زخم إيجابي)" if price_change >= 0 else "📉 هابط (تصحيح لحظي)"
-        dir_color = "green" if price_change >= 0 else "red"
-        
         levels = calculate_lightspeed_levels(current_price, hist['High'].max(), hist['Low'].min(), current_rsi)
         
-        try:
-            info_data = ticker_obj.info
-            company_name = info_data.get("longName", ticker_resolved)
-            float_shares = info_data.get("floatShares", 0)
-        except:
-            company_name = ticker_resolved
-            float_shares = 0
-
+        # لوحة فحص المؤشرات اللحظية الأساسية
         st.subheader("📌 لوحة الفحص والمؤشرات اللحظية الحية")
-        st.markdown(f"### 🏢 الشركة النشطة: <span style='color:#38bdf8;'>{company_name} ({ticker_resolved})</span> | فريم التحليل: `{timeframe}`", unsafe_allow_html=True)
+        st.markdown(f"### 🏢 السهم النشط حالياً: {ticker_resolved} | فريم التحليل: `{timeframe}`")
         
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
             st.metric(label=f"السعر الحالي ({currency})", value=f"{current_price:.2f}", delta=f"{price_change:.2f}%")
         with col_m2:
-            st.metric(label="مؤشر القوة النسبية RSI الحالي", value=f"{current_rsi:.2f}", delta="إيجابي التشغيل" if current_rsi > 50 else "ضعيف الزخم")
+            st.metric(label="مؤشر القوة النسبية RSI الحالي", value=f"{current_rsi:.2f}")
         with col_m3:
             last_vol = hist['Volume'].iloc[-1]
             liquidity_value = last_vol * current_price
             st.metric("سيولة الشمعة الأخيرة", f"{liquidity_value:,.0f} {currency}")
-        with col_m4:
-            st.metric("الأسهم الحرة (Float Shares)", f"{float_shares:,.0f}" if float_shares else "تحديث دوري")
         
         st.markdown("---")
         
         col_t1, col_t2 = st.columns(2)
         with col_t1:
-            st.subheader("🎯 أهداف ومستويات القناص المضاربية (المدعمة بـ RSI)")
+            st.subheader("🎯 أهداف ومستويات القناص المضاربية")
             st.success(f"🟢 منطقة أفضل دخول آمن لحظي: **{levels['entry']:.2f} {currency}**")
             st.info(f"🚀 المستهدف المضاربي الأول: **{levels['t1']:.2f} {currency}**")
             st.info(f"🚀 المستهدف الفني الثاني: **{levels['t2']:.2f} {currency}**")
@@ -164,14 +136,15 @@ def main():
         with col_t2:
             st.subheader("🔔 مركز الإشعارات الفورية ونصائح الرادار")
             if current_rsi >= 70:
-                st.error("🔥 **إشعار تضخم فني (Overbought):** مؤشر RSI أعلى من 70! السهم في منطقة تشسع شرائي حاد ومخاطرة الدخول عالية جداً حالياً، انتظر التهدئة.")
+                st.error("🔥 إشعار تضخم فني (Overbought): مؤشر RSI أعلى من 70! السهم في منطقة تشبع شرائي حاد ومخاطرة الدخول عالية جداً حالياً، انتظر التهدئة.")
             elif current_rsi <= 30:
-                st.success("💎 **إشعار اقتناص قاع (Oversold):** مؤشر RSI تحت 30! السهم في منطقة تشبع بيعي مفرط فريدة، ويمثل فرصة تجميع ذهبية لارتداد سعري قوي قادم.")
+                st.success("💎 إشعار اقتناص قاع (Oversold): مؤشر RSI تحت 30! السهم في منطقة تشبع بيعي مفرط فريدة، ويمثل فرصة تجميع ذهبية لارتداد سعري قوي قادم.")
             else:
-                st.warning("⚖️ **نصيحة الرادار:** مؤشر RSI في نطاق متزن طبيعي (بين 30 و 70). المسار مناسب جداً للمضاربات الخاطفة السريعة بين مستويات الدعم والهدف الأول.")
+                st.warning("⚖️ نصيحة الرادار: مؤشر RSI في نطاق متزن طبيعي (بين 30 و 70). المسار مناسب جداً للمضاربات السريعة واقتناص الفروقات السعرية.")
         
         st.markdown("---")
         
+        # بناء شارت الشموع اليابانية التفاعلي
         st.subheader(f"📈 شارت التحليل الفني التفاعلي اللحظي لفريم ({timeframe})")
         fig = go.Figure(data=[go.Candlestick(
             x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع اليابانية"
@@ -179,16 +152,17 @@ def main():
         fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منطقة الدخول")
         fig.add_hline(y=levels['t1'], line_dash="dash", line_color="blue", annotation_text="الهدف 1")
         fig.add_hline(y=levels['sl'], line_dash="dash", line_color="red", annotation_text="وقف الخسارة الصارم")
-        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=450, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16')
+        fig.update_layout(xaxis_rangeslider_visible=False, height=410)
         st.plotly_chart(fig, use_container_width=True)
         
+        # بناء شارت RSI التلقائي
         st.subheader("📊 شارت تذبذب مؤشر القوة النسبية الفعلي (RSI Chart)")
         fig_rsi = go.Figure()
         fig_rsi.add_trace(go.Scatter(x=hist.index, y=hist['RSI'], mode='lines', line=dict(color='#ff9900', width=2), name='RSI (14)'))
-        fig_rsi.add_hline(y=70, line_dash="dot", line_color="red", annotation_text="تشبع شرائي 70")
-        fig_rsi.add_hline(y=30, line_dash="dot", line_color="green", annotation_text="تشبع بيعي 30")
-        fig_rsi.update_layout(template="plotly_dark", height=200, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16')
+        fig_rsi.add_hline(y=70, line_dash="dot", line_color="red", annotation_text="70")
+        fig_rsi.add_hline(y=30, line_dash="dot", line_color="green", annotation_text="30")
+        fig_rsi.update_layout(height=180)
         st.plotly_chart(fig_rsi, use_container_width=True)
-        
-        st.markdown("---")
-        
+
+if __name__ == "__main__":
+    main()
