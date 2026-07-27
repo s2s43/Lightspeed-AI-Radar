@@ -177,7 +177,7 @@ def main():
         fig = go.Figure(data=[go.Candlestick(
             x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع اليابانية"
         )])
-        fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منطقة الدخول")
+        fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منخول")
         fig.add_hline(y=levels['t1'], line_dash="dash", line_color="blue", annotation_text="الهدف 1")
         fig.add_hline(y=levels['sl'], line_dash="dash", line_color="red", annotation_text="وقف الخسارة الصارم")
         fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=450, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16')
