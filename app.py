@@ -32,12 +32,30 @@ def resolve_ticker(user_input, market_type):
     return user_input.upper().strip()
 
 # ==========================================
-# 2. خوارزمية Lightspeed لحساب الدخول والأهداف اللحظية
+# 2. محرك الحسابات الفنية المتقدمة ومؤشر RSI
 # ==========================================
-def calculate_lightspeed_levels(current_price, high, low):
+def calculate_rsi(df, periods=14):
+    """حساب مؤشر القوة النسبية RSI بدقة رياضية متناهية بدون مكتبات خارجية ثقيلة"""
+    close_delta = df['Close'].diff()
+    up = close_delta.clip(lower=0)
+    down = -1 * close_delta.clip(upper=0)
+    
+    ma_up = up.ewm(com=periods - 1, adjust=False).mean()
+    ma_down = down.ewm(com=periods - 1, adjust=False).mean()
+    
+    rsi = ma_up / ma_down
+    rsi = 100 - (100 / (1 + rsi))
+    return rsi
+
+def calculate_lightspeed_levels(current_price, high, low, rsi_value):
+    """توليد المستويات الفنية المضاربية الدقيقة حركياً بناء على تذبذب الشموع وقوة الـ RSI الحالية"""
     range_movement = (high - low) if (high - low) > 0 else (current_price * 0.02)
+    
+    # مواءمة ذكية: إذا كان RSI منخفضاً (فرصة شراء ارتدادية)، يتم تقريب نقطة الدخول للسعر الحالي
+    adjustment = 0.05 if rsi_value < 35 else (0.25 if rsi_value > 65 else 0.15)
+    
     return {
-        "entry": current_price - (range_movement * 0.15),
+        "entry": current_price - (range_movement * adjustment),
         "t1": current_price + (range_movement * 0.35),
         "t2": current_price + (range_movement * 0.85),
         "t3": current_price + (range_movement * 1.50),
@@ -61,7 +79,7 @@ def main():
     """, unsafe_allow_html=True)
     
     st.title("📊 Lightspeed AI Radar pro - منصة التداول والتحليل اللحظي")
-    st.markdown("محرك مضاربي متكامل مدمج بخوارزميات صانعي السوق وجلب فوري للأسعار الحية.")
+    st.markdown("محرك مضاربي متكامل مدعم بمؤشر القوة النسبية RSI الفعلي وجلب فوري للأسعار الحية.")
     
     st.sidebar.header("⚙️ إعدادات المنصة والربط")
     market_choice = st.sidebar.selectbox("اختر السوق المستهدف:", ["السوق الأمريكي 🇺🇸", "السوق السعودي (تداول) 🇸🇦"])
@@ -97,13 +115,20 @@ def main():
             return
             
         hist = hist.dropna(subset=['Close'])
+        
+        # حساب قيم مؤشر القوة النسبية RSI الفعلي وإلحاقها ببيانات الشمعة
+        hist['RSI'] = calculate_rsi(hist)
+        current_rsi = hist['RSI'].iloc[-1] if not hist['RSI'].empty else 50.0
+        
         current_price = hist['Close'].iloc[-1]
         prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
         price_change = ((current_price - prev_price) / prev_price) * 100
         
         stock_direction = "📈 صاعد (زخم إيجابي)" if price_change >= 0 else "📉 هابط (تصحيح لحظي)"
         dir_color = "green" if price_change >= 0 else "red"
-        levels = calculate_lightspeed_levels(current_price, hist['High'].max(), hist['Low'].min())
+        
+        # تشغيل الخوارزمية المدعمة بـ RSI لتوليد نقاط القناص
+        levels = calculate_lightspeed_levels(current_price, hist['High'].max(), hist['Low'].min(), current_rsi)
         
         try:
             info_data = ticker_obj.info
@@ -120,7 +145,8 @@ def main():
         with col_m1:
             st.metric(label=f"السعر الحالي ({currency})", value=f"{current_price:.2f}", delta=f"{price_change:.2f}%")
         with col_m2:
-            st.markdown(f"**الاتجاه الفني الحالي:**\n\n<span style='color:{dir_color}; font-size:18px; font-weight:bold;'>{stock_direction}</span>", unsafe_allow_html=True)
+            # إضافة قيمة RSI الحقيقية إلى واجهة الفحص مباشرة
+            st.metric(label="مؤشر القوة النسبية RSI الحالي", value=f"{current_rsi:.2f}", delta="إيجابي التشغيل" if current_rsi > 50 else "ضعيف الزخم")
         with col_m3:
             last_vol = hist['Volume'].iloc[-1]
             liquidity_value = last_vol * current_price
@@ -132,7 +158,7 @@ def main():
         
         col_t1, col_t2 = st.columns(2)
         with col_t1:
-            st.subheader("🎯 أهداف ومستويات القناص المضاربية")
+            st.subheader("🎯 أهداف ومستويات القناص المضاربية (المدعمة بـ RSI)")
             st.success(f"🟢 منطقة أفضل دخول آمن لحظي: **{levels['entry']:.2f} {currency}**")
             st.info(f"🚀 المستهدف المضاربي الأول: **{levels['t1']:.2f} {currency}**")
             st.info(f"🚀 المستهدف الفني الثاني: **{levels['t2']:.2f} {currency}**")
@@ -142,47 +168,27 @@ def main():
         
         with col_t2:
             st.subheader("🔔 مركز الإشعارات الفورية ونصائح الرادار")
-            if last_vol > (hist['Volume'].mean() * 1.5):
-                st.error("⚡ **إشعار اختراق سيولة:** تم رصد تدفق حجم تداول ضخم ومفاجئ يفوق المعدل المعتاد بـ 150%! السيولة الحالية تفاعلية.")
-            if abs(current_price - levels['entry']) / levels['entry'] <= 0.01:
-                st.success("🎯 **إشعار اقتناص فوري:** السهم يسبح الآن مباشرة داخل نطاق منطقة الدخول الأمنة والمضاربة اللحظية.")
-            elif current_price <= levels['sl']:
-                st.error("🚨 **إشعار خطر فني:** السهم كسر مستوى دعم حماية الأرباح الافتراضي، يرجى تفعيل وقف الخسارة الصارم لحماية رأس المال.")
+            # تنبيهات الإشباع الشرائي والبيعي الفنية المبنية على قيم RSI الدقيقة
+            if current_rsi >= 70:
+                st.error("🔥 **إشعار تضخم فني (Overbought):** مؤشر RSI أعلى من 70! السهم في منطقة تشبع شرائي حاد ومخاطرة الدخول عالية جداً حالياً، انتظر التهدئة.")
+            elif current_rsi <= 30:
+                st.success("💎 **إشعار اقتناص قاع (Oversold):** مؤشر RSI تحت 30! السهم في منطقة تشبع بيعي مفرط فريدة، ويمثل فرصة تجميع ذهبية لارتداد سعري قوي قادم.")
             else:
-                st.warning("⚖️ حركة السهم تتداول ضمن مستويات التجميع الفنية العادية، مناسب للمضاربات الخاطفة بين منطقة الدخول والهدف الأول.")
+                st.warning("⚖️ **نصيحة الرادار:** مؤشر RSI في نطاق متزن طبيعي (بين 30 و 70). المسار مناسب جداً للمضاربات الخاطفة السريعة بين مستويات الدعم والهدف الأول.")
         
         st.markdown("---")
         
+        # === 📈 شارت الشموع اليابانية الرئيسي ===
         st.subheader(f"📈 شارت التحليل الفني التفاعلي اللحظي لفريم ({timeframe})")
         fig = go.Figure(data=[go.Candlestick(
             x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], name="الشموع اليابانية"
         )])
-        fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منطقة الدخول الآمنة")
+        fig.add_hline(y=levels['entry'], line_dash="dash", line_color="green", annotation_text="منطقة الدخول")
         fig.add_hline(y=levels['t1'], line_dash="dash", line_color="blue", annotation_text="الهدف 1")
         fig.add_hline(y=levels['sl'], line_dash="dash", line_color="red", annotation_text="وقف الخسارة الصارم")
-        
-        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=520, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16')
+        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=450, paper_bgcolor='#0c0f16', plot_bgcolor='#0c0f16')
         st.plotly_chart(fig, use_container_width=True)
         
-        st.markdown("---")
-        
-        st.subheader("📰 آخر أخبار السهم والتحليل الذكي لمشاعر الخبر")
-        try:
-            news_list = ticker_obj.news
-            if news_list and len(news_list) > 0:
-                for news in news_list[:3]:
-                    n_title = news.get('title', '')
-                    n_link = news.get('link', '')
-                    n_polarity = TextBlob(n_title).sentiment.polarity
-                    sentiment_labels = ["🔴 سلبي (محفز للهبوط)", "🟡 محايد (استقرار سعري)", "🟢 إيجابي (محفز للصعود)"]
-                    idx = int(n_polarity > 0.1) - int(n_polarity < -0.1) + 1
-                    
-                    st.markdown(f"🔹 **[{n_title}]({n_link})**")
-                    st.info(f"التحليل الذكي لمشاعر فحوى الخبر: {sentiment_labels[idx]}")
-            else:
-                st.info("لا توجد أخبار جوهرية منشورة حديثاً لهذا الرمز حالياً عبر البورصة العالمية.")
-        except:
-            st.info("تعذر تحميل الأخبار الفورية الخاصة بهذا الرمز مؤقتاً من المصدر الرئيسي.")
-
-if __name__ == "__main__":
-    main()
+        # === 📊 شارت مؤشر RSI المستقل والتفاعلي بالكامل ===
+        st.subheader("📊 شارت تذبذب مؤشر القوة النسبية الفعلي (RSI Chart)")
+        fig_rsi = go.Figure()
